@@ -993,10 +993,7 @@
 </head>
 <body>
 <div id="app">
-<div id="loadingOverlay">
-  <div class="loading-spinner"></div>
-  <div class="loading-text" id="loadingText">Conectando ao Firebase<span class="sync-dot"></span></div>
-</div>
+<!-- overlay removido do HTML inicial - não bloqueia a tela de login -->
 
 
 <!-- ===== LOGIN SCREEN ===== -->
@@ -1589,25 +1586,23 @@ function setupListeners() {
   const total = 3;
   let hidDone = false;
 
-  // Timeout de segurança: se em 6s não responder, libera a tela mesmo assim
+  // Se Firebase não responder em 4s, marca como offline
   const safetyTimer = setTimeout(() => {
     if(!hidDone) {
       hidDone = true;
-      console.warn('Firebase timeout — abrindo sistema mesmo assim');
+      console.warn('Firebase timeout');
+      db = null;
       setSyncStatus('offline');
-      hideLoading();
-      renderAll();
     }
-  }, 6000);
+  }, 4000);
 
   function checkLoaded() {
     loaded++;
-    if(loaded >= total && !hidDone) {
+    clearTimeout(safetyTimer);
+    if(loaded >= total) {
       hidDone = true;
-      clearTimeout(safetyTimer);
-      hideLoading();
-      renderAll();
       setSyncStatus('ok');
+      renderAll(); // atualiza com dados do Firebase
     }
   }
 
@@ -1687,6 +1682,7 @@ function doLogin() {
   const userData = USERS[u];
   if (!userData || userData.pass !== p || userData.role !== r) {
     err.style.display = 'block';
+    hideLoading(); // garante que overlay suma mesmo em erro
     return;
   }
   err.style.display = 'none';
@@ -1704,21 +1700,15 @@ function doLogin() {
     document.getElementById('admTreinoSection').style.display = 'block';
   }
   startClock();
-  // Mostra overlay de loading
-  let ovEl = document.getElementById('loadingOverlay');
-  if(!ovEl) {
-    ovEl = document.createElement('div');
-    ovEl.id = 'loadingOverlay';
-    ovEl.style.cssText = 'position:fixed;inset:0;background:#020810;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2rem;transition:opacity 0.4s;';
-    ovEl.innerHTML = '<div class="loading-spinner"></div><div class="loading-text" id="loadingText">Carregando dados<span class="sync-dot"></span></div>';
-    document.body.appendChild(ovEl);
-  } else {
-    ovEl.style.display = 'flex';
-    ovEl.style.opacity = '1';
-    ovEl.classList.remove('hide');
-  }
-  initFirebase();
-  setupListeners(); // carrega dados e chama renderAll após Firebase responder
+  // Abre o sistema imediatamente
+  hideLoading();
+  renderAll();
+  setSyncStatus('syncing');
+  // Firebase conecta em background e atualiza os dados quando pronto
+  setTimeout(() => {
+    initFirebase();
+    setupListeners();
+  }, 100);
   // Show pending notifications
   if(userData.role === 'admin' && state.notifQueue.length) {
     showNotif(state.notifQueue.slice(-1)[0]);
